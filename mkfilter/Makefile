@@ -4,7 +4,7 @@ cgibin = /york/www/usr/fisher/cgi-bin
 objs   = mkfscript.o
 
 mkfscript: $(objs)
-	g++ $(objs) -lm -o $@
+	g++ $(objs) -lcgicc -lm -o $@
 
 install:
 	cp mkfscript $(cgibin)/mkfscript

@@ -5,11 +5,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <new>
+// #include <new.h>
 #include <math.h>
 #include <stdarg.h>
-
-#define global
 
 #define unless(x)    if(!(x))
 #define until(x)     while(!(x))
@@ -31,22 +29,70 @@
 #define MB_LT0	    0x08    /* must be .lt. 0 */
 #define MB_LE1	    0x10    /* must be .le. 1 */
 
-// libcgi dummy:
+// libcgi quick replacement:
+
+#include <vector>
+#include <cgicc/Cgicc.h>
 
 struct entry
 {
-	const char* nam;
-	const char* val;
+private:
+	std::string name;
+	std::string value;
+
+public:
+	const char* const nam;
+	const char* const val;
+
+	entry(const std::string& n, const std::string& v) : name(n), value(v), nam(name.c_str()), val(value.c_str()) {}
+	entry(entry const& other) : name(other.nam), value(other.val), nam(name.c_str()), val(value.c_str()) {}
 };
 
-#include <vector>
 std::vector<entry> entries;
 static size_t numentries;
 
-static void getentries() {}
-static bool isset(const char*) { return false; }
-static const char* getval(const char*) { return nullptr; }
-static void discard_output() {}
+static void getentries()
+{
+	try {
+		cgicc::Cgicc cgi;
+		const std::vector<cgicc::FormEntry>& fes = cgi.getElements();
+
+		for (auto const& fe: fes)
+		{
+			entry e(fe.getName(), fe.getValue());
+			entries.push_back(e);
+		}
+
+		numentries = entries.size();
+
+	} catch (...) {
+		// hfatal()???
+	}
+}
+
+static bool isset(const char* key)
+{
+	for (auto const& e: entries)
+	{
+		if (!strcmp(key, e.nam))
+			return true;
+	}
+
+	return false;
+}
+
+static const char* getval(const char* key)
+{
+	for (auto const& e: entries)
+	{
+		if (!strcmp(key, e.nam))
+			return e.val;
+	}
+
+	return "";
+}
+
+static void discard_output() { /* TODO */ }
 
 // libcgi end.
 
@@ -69,7 +115,7 @@ static double samplerate, graph_a1, graph_a2;
 static int nirsteps;
 static char expid[16], mypid[16];
 
-static void newhandler(), logaccess(), checkreferrer(), printheader(), summarize();
+static void /* newhandler(),*/ logaccess(), checkreferrer(), printheader(), summarize();
 static void mkfilter(), mkmagphasegraph(), mktimegraphs(), dlcoeffs(), redirect(char*);
 static void obeycmd(char*, bool);
 static FILE *do_popen(char*);
@@ -89,8 +135,8 @@ inline bool seq(const char *s1, const char *s2)    { return strcmp(s1,s2) == 0;	
 inline bool starts(const char *s1, const char *s2) { return strncmp(s1, s2, strlen(s2)) == 0; }
 
 
-global int main(int, char **)
-  { std::set_new_handler(newhandler);
+int main(int, char **)
+  { // set_new_handler(newhandler);
     umask(022);				   /* make files written to tmpdir readable by server */
     bool pt = true; /* print trailer? */
     printheader();
@@ -117,9 +163,9 @@ global int main(int, char **)
     exit(0);
   }
 
-static void newhandler()
-  { hfatal("No room!");
-  }
+//static void newhandler()
+//  { hfatal("No room!");
+//  }
 
 static void logaccess()
   { char str[16]; sprintf(str, "%07d", 13579); //uniqueid());
