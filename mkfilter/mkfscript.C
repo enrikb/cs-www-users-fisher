@@ -5,9 +5,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <new.h>
+#include <new>
 #include <math.h>
-#include <libcgi.h>
+#include <stdarg.h>
 
 #define global
 
@@ -31,6 +31,25 @@
 #define MB_LT0	    0x08    /* must be .lt. 0 */
 #define MB_LE1	    0x10    /* must be .le. 1 */
 
+// libcgi dummy:
+
+struct entry
+{
+	const char* nam;
+	const char* val;
+};
+
+#include <vector>
+std::vector<entry> entries;
+static size_t numentries;
+
+static void getentries() {}
+static bool isset(const char*) { return false; }
+static const char* getval(const char*) { return nullptr; }
+static void discard_output() {}
+
+// libcgi end.
+
 typedef unsigned int uint;
 
 union word
@@ -40,9 +59,9 @@ union word
   };
 
 extern "C"
-  { char *getenv(char*);
-    double atof(char*);
-    int atoi(char*);
+  { char *getenv(const char*);
+    double atof(const char*);
+    int atoi(const char*);
     void umask(uint);
   };
 
@@ -56,22 +75,22 @@ static void obeycmd(char*, bool);
 static FILE *do_popen(char*);
 static void do_pclose(FILE*);
 static void makefiltercmd(char*), makeres(char*, int&), makepif(char*, int&), maketrad(char*, int&);
-static double getalpha(char*, uint);
-static double getfval(char*, uint);
-static int getival(char*, uint);
-static void appendptype(char*, int&, char*);
-static void appends(char*, int&, char*, char* = NULL, char* = NULL, char* = NULL);
-static void appendi(char*, int&, char*, int = 0, int = 0);
-static void appendf(char*, int&, char*, double = 0.0, double = 0.0);
+static double getalpha(const char*, uint);
+static double getfval(const char*, uint);
+static int getival(const char*, uint);
+static void appendptype(char*, int&, const char*);
+static void appends(char*, int&, const char*, const char* = NULL, const char* = NULL, const char* = NULL);
+static void appendi(char*, int&, const char*, int = 0, int = 0);
+static void appendf(char*, int&, const char*, double = 0.0, double = 0.0);
 static void printtrailer();
-static void hfatal(char*, word = 0);
+static void hfatal(const char*, ...);
 
-inline bool seq(char *s1, char *s2)    { return strcmp(s1,s2) == 0;		  }
-inline bool starts(char *s1, char *s2) { return strncmp(s1, s2, strlen(s2)) == 0; }
+inline bool seq(const char *s1, const char *s2)    { return strcmp(s1,s2) == 0;		  }
+inline bool starts(const char *s1, const char *s2) { return strncmp(s1, s2, strlen(s2)) == 0; }
 
 
-global void main(int argc, char **argv)
-  { set_new_handler(newhandler);
+global int main(int, char **)
+  { std::set_new_handler(newhandler);
     umask(022);				   /* make files written to tmpdir readable by server */
     bool pt = true; /* print trailer? */
     printheader();
@@ -103,8 +122,8 @@ static void newhandler()
   }
 
 static void logaccess()
-  { char str[16]; sprintf(str, "%07d", uniqueid());
-    logweb("mkfilter", str);
+  { char str[16]; sprintf(str, "%07d", 13579); //uniqueid());
+    //logweb("mkfilter", str);
   }
 
 static void checkreferrer()
@@ -129,7 +148,7 @@ static void summarize()
   { printf("<h2> Summary </h2>\n");
     printf("You specified the following parameters:\n");
     printf("<ul> <table>\n");
-    for (int i = 0; i < numentries; i++)
+    for (size_t i = 0; i < numentries; i++)
       { entry *e = &entries[i];
 	printf("   <tr> <td> %s <td> = <td> %s\n", e -> nam, e -> val);
       }
@@ -138,7 +157,7 @@ static void summarize()
 
 static void mkfilter()
   { samplerate = getfval("samplerate", MB_PRES | MB_GT0);
-    sprintf(mypid, "%07d", uniqueid());
+    sprintf(mypid, "%07d", 13579); //uniqueid());
     if (isset("expid"))
       { /* expand a previously-created graph */
 	strcpy(expid, getval("expid")); /* identifies parent .mkf file */
@@ -151,7 +170,7 @@ static void mkfilter()
       }
     else
       { /* create a new filter */
-	char *ftype = getval("filtertype");
+	const char *ftype = getval("filtertype");
 	strcpy(expid, mypid);
 	if (seq(ftype, "Raised Cosine"))
 	  { double alpha = getalpha("corner", MB_PRES);
@@ -185,7 +204,7 @@ static void mkfilter()
   }
 
 static void mkmagphasegraph()
-  { char *ftype = getval("filtertype");
+  { const char *ftype = getval("filtertype");
     char cmd[MAXSTR+1]; int p = 0;
     double logmin = getfval("logmin", MB_LT0);  /* 0.0 if not specified */
     printf("<h2> Magnitude (red) and phase (blue) vs. frequency </h2>\n");
@@ -244,8 +263,8 @@ static void mktimegraphs()
   }
 
 static void dlcoeffs()
-  { char *str = getval("dlcoeffs");
-    char *lang = (str[0] == 'V') ? "" : "-xyc";
+  { const char *str = getval("dlcoeffs");
+    const char *lang = (str[0] == 'V') ? "" : "-xyc";
     discard_output();
     printf("Content-type: text/saveme\n\n");
     char cmd[MAXSTR+1];
@@ -298,14 +317,14 @@ static void do_pclose(FILE *fi)
 
 static void makefiltercmd(char *cmd)	/* make "mkfilter" command */
   { int p = 0;
-    char *ftype = getval("filtertype");
+    const char *ftype = getval("filtertype");
     if (seq(ftype, "Raised Cosine") || seq(ftype, "Hilbert Transformer"))
       { int nir = getival("impulselen", MB_PRES | MB_GT0);
 	if (ftype[0] == 'R')
 	  { double alpha = getalpha("corner", MB_PRES);
 	    double beta = getfval("beta", MB_PRES | MB_GE0 | MB_LE1);       /* range 0 .. 1 */
 	    appends(cmd, p, "%s/mkshape ", TOOLS_DIR);
-	    char *typ = getval("racos");
+	    const char *typ = getval("racos");
 	    if (seq(typ, "yes") || seq(typ, "sqrt"))
 	      { appends(cmd, p, (typ[0] == 'y') ? "-c " : "-r ");
 		appendf(cmd, p, "%17.10e %17.10e ", alpha, beta);
@@ -334,7 +353,7 @@ static void makefiltercmd(char *cmd)	/* make "mkfilter" command */
 static void makeres(char *cmd, int &p)
   { double qf = getfval("qfactor", MB_PRES | MB_GT0);
     appendf(cmd, p, "-Re %17.10e ", qf);
-    char *ptype = getval("passtype");
+    const char *ptype = getval("passtype");
     appendptype(cmd, p, ptype);	    /* -Lp etc. */
     double alpha = getalpha("centre", MB_PRES);
     appendf(cmd, p, "-a %17.10e -@", alpha);    // ???
@@ -353,7 +372,7 @@ static void makepif(char *cmd, int &p)
   }
 
 static void maketrad(char *cmd, int &p)
-  { char *ftype = getval("filtertype"), *ptype = getval("passtype");
+  { const char *ftype = getval("filtertype"); const char *ptype = getval("passtype");
     appends(cmd, p, "-%.2s ", ftype);  /* Bu/Be/Ch */
     double rip = getfval("ripple", MB_LT0);
     if (ftype[0] == 'C')
@@ -399,8 +418,8 @@ static void maketrad(char *cmd, int &p)
     if (alphaz != 0.0) appendf(cmd, p, "-Z %17.10e ", alphaz);
   }
 
-static double getalpha(char *key, uint chk)
-  { char *val = getval(key);
+static double getalpha(const char *key, uint chk)
+  { const char *val = getval(key);
     if (val[0] == '\0')
       { if (chk & MB_PRES) hfatal("You must specify a value for ``%s frequency''.", key);
 	return 0.0;	/* means "none specified" */
@@ -416,8 +435,8 @@ static double getalpha(char *key, uint chk)
     return alpha;
   }
 
-static double getfval(char *key, uint chk)
-  { char *val = isset(key) ? getval(key) : "";
+static double getfval(const char *key, uint chk)
+  { const char *val = isset(key) ? getval(key) : "";
     if (val[0] == '\0')
       { if (chk & MB_PRES) hfatal("You must specify a value for ``%s''.", key);
 	return 0.0;	/* means "none specified" */
@@ -430,8 +449,8 @@ static double getfval(char *key, uint chk)
     return dval;
   }
 
-static int getival(char *key, uint chk)
-  { char *val = isset(key) ? getval(key) : "";
+static int getival(const char *key, uint chk)
+  { const char *val = isset(key) ? getval(key) : "";
     if (val[0] == '\0')
       { if (chk & MB_PRES) hfatal("You must specify a value for ``%s''.", key);
 	return 0;	/* means "none specified" */
@@ -444,7 +463,7 @@ static int getival(char *key, uint chk)
     return ival;
   }
 
-static void appendptype(char *cmd, int &p, char *pt)
+static void appendptype(char *cmd, int &p, const char *pt)
   { if (seq(pt, "Lowpass")) appends(cmd, p, "-Lp");
     else if (seq(pt, "Highpass")) appends(cmd, p, "-Hp");
     else if (seq(pt, "Bandpass")) appends(cmd, p, "-Bp");
@@ -454,17 +473,17 @@ static void appendptype(char *cmd, int &p, char *pt)
     cmd[p++] = ' ';
   }
 
-static void appends(char *cmd, int &p, char *fmt, char *p1, char *p2, char *p3)
+static void appends(char *cmd, int &p, const char *fmt, const char *p1, const char *p2, const char *p3)
   { sprintf(&cmd[p], fmt, p1, p2, p3);
     until (cmd[p] == '\0') p++;
   }
 
-static void appendi(char *cmd, int &p, char *fmt, int p1, int p2)
+static void appendi(char *cmd, int &p, const char *fmt, int p1, int p2)
   { sprintf(&cmd[p], fmt, p1, p2);
     until (cmd[p] == '\0') p++;
   }
 
-static void appendf(char *cmd, int &p, char *fmt, double p1, double p2)
+static void appendf(char *cmd, int &p, const char *fmt, double p1, double p2)
   { sprintf(&cmd[p], fmt, p1, p2);
     until (cmd[p] == '\0') p++;
   }
@@ -477,9 +496,13 @@ static void printtrailer()
     printf("</address>\n");
   }
 
-static void hfatal(char *msg, word p1)
-  { printf("<h2> Error! </h2>\n");
-    printf(msg, p1); printf(" <p>\n");
+static void hfatal(const char *msg, ...)
+  { va_list ap;
+   	printf("<h2> Error! </h2>\n");
+	va_start(ap, msg);
+    vprintf(msg, ap);
+	va_end(ap);
+   	printf(" <p>\n");
     exit(0);
   }
 
