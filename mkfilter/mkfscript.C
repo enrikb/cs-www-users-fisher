@@ -14,9 +14,9 @@
 
 #define MAXSTR	    256
 
-#define TEMP_DIR    "/www/usr/fisher/tmpdir/misc"
-#define TOOLS_DIR   "/www/usr/fisher/helpers"
-#define TEMP_URL    "http://www-users.cs.york.ac.uk/~fisher/tmpdir/misc"
+#define TEMP_DIR    "./tmpdir/misc"
+#define TOOLS_DIR   "./helpers"
+#define TEMP_URL    "/tmpdir/misc"
 #define MY_URL	    "http://www-users.cs.york.ac.uk/~fisher/mkfilter"
 
 #define TWOPI	    (2.0 * M_PI)
@@ -116,7 +116,7 @@ static int nirsteps;
 static char expid[16], mypid[16];
 
 static void /* newhandler(),*/ logaccess(), checkreferrer(), printheader(), summarize();
-static void mkfilter(), mkmagphasegraph(), mktimegraphs(), dlcoeffs(), redirect(char*);
+static void mkfilter(), mkmagphasegraph(), mktimegraphs(), dlcoeffs()/*, redirect(char*) */;
 static void obeycmd(char*, bool);
 static FILE *do_popen(char*);
 static void do_pclose(FILE*);
@@ -173,13 +173,18 @@ static void logaccess()
   }
 
 static void checkreferrer()
-  { char *s = getenv("HTTP_REFERER");
+  { return;
+	/*
+	 * Yes, unfortunately this is a bootleg site...
+	 *
+	char *s = getenv("HTTP_REFERER");
     if (s == NULL || !starts(s, "http://www-users.cs.york.ac.uk/~fisher/"))
       { char url[MAXSTR+1];
 	sprintf(url, "%s/bootleg.html", MY_URL);
 	redirect(url);
 	exit(0);
       }
+	 */
   }
 
 static void printheader()
@@ -318,15 +323,15 @@ static void dlcoeffs()
     obeycmd(cmd, false);
   }
 
-static void redirect(char *url)
-  { discard_output();
-    printf("Status: 301 Moved Permanently\n");
-    printf("Content-type: text/html\n");
-    printf("Location: %s\n\n", url);
-    printf("<HTML>\n");
-    printf("<title> Automatic Redirection </title>\n");
-    printf("You are redirected <a href=%s>here</a>. <br>\n", url);
-  }
+//static void redirect(char *url)
+//  { discard_output();
+//    printf("Status: 301 Moved Permanently\n");
+//    printf("Content-type: text/html\n");
+//    printf("Location: %s\n\n", url);
+//    printf("<HTML>\n");
+//    printf("<title> Automatic Redirection </title>\n");
+//    printf("You are redirected <a href=%s>here</a>. <br>\n", url);
+//  }
 
 static void obeycmd(char *cmd, bool hfmt)
   { FILE *fi = do_popen(cmd);

@@ -1,13 +1,17 @@
 BUILTINS =
 
-cgibin = /york/www/usr/fisher/cgi-bin
 objs   = mkfscript.o
+
+all: mkfscript
 
 mkfscript: $(objs)
 	g++ $(objs) -lcgicc -lm -o $@
 
-install:
-	cp mkfscript $(cgibin)/mkfscript
+install: cgi-bin/mkfscript
+
+cgi-bin/mkfscript: mkfscript
+	mkdir cgi-bin 2>/dev/null || true
+	cp mkfscript cgi-bin/mkfscript
 
 $(objs): %.o: %.C
 	g++ -W -Wall -c $< -o $@
