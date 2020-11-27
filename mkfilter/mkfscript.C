@@ -3,9 +3,10 @@
    AJF	 January 1996
 */
 
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
-// #include <new.h>
+#include <new>
 #include <math.h>
 #include <stdarg.h>
 
@@ -28,6 +29,44 @@
 #define MB_GE0	    0x04    /* must be .ge. 0 */
 #define MB_LT0	    0x08    /* must be .lt. 0 */
 #define MB_LE1	    0x10    /* must be .le. 1 */
+
+typedef unsigned int uint;
+
+union word
+  { word(int nx)   { n = nx; }
+    word(char *sx) { s = sx; }
+    int n; char *s;
+  };
+
+extern "C"
+  { char *getenv(const char*);
+    double atof(const char*);
+    int atoi(const char*);
+    void umask(uint);
+  };
+
+static double samplerate, graph_a1, graph_a2;
+static int nirsteps;
+static char expid[16], mypid[16];
+
+static void newhandler(), logaccess(), checkreferrer(), printheader(), summarize();
+static void mkfilter(), mkmagphasegraph(), mktimegraphs(), dlcoeffs()/*, redirect(char*) */;
+static void obeycmd(char*, bool);
+static FILE *do_popen(char*);
+static void do_pclose(FILE*);
+static void makefiltercmd(char*), makeres(char*, int&), makepif(char*, int&), maketrad(char*, int&);
+static double getalpha(const char*, uint);
+static double getfval(const char*, uint);
+static int getival(const char*, uint);
+static void appendptype(char*, int&, const char*);
+static void appends(char*, int&, const char*, const char* = NULL, const char* = NULL, const char* = NULL);
+static void appendi(char*, int&, const char*, int = 0, int = 0);
+static void appendf(char*, int&, const char*, double = 0.0, double = 0.0);
+static void printtrailer();
+static void hfatal(const char*, ...);
+
+inline bool seq(const char *s1, const char *s2)    { return strcmp(s1,s2) == 0;		  }
+inline bool starts(const char *s1, const char *s2) { return strncmp(s1, s2, strlen(s2)) == 0; }
 
 // libcgi quick replacement:
 
@@ -55,7 +94,7 @@ static void getentries()
 {
 	try {
 		cgicc::Cgicc cgi;
-		const std::vector<cgicc::FormEntry>& fes = cgi.getElements();
+		auto const& fes = cgi.getElements();
 
 		for (auto const& fe: fes)
 		{
@@ -65,8 +104,12 @@ static void getentries()
 
 		numentries = entries.size();
 
+	} catch (std::exception const& e) {
+		printheader();
+		hfatal("Exception: %s!", e.what());
 	} catch (...) {
-		// hfatal()???
+		printheader();
+		hfatal("Exception!");
 	}
 }
 
@@ -92,56 +135,25 @@ static const char* getval(const char* key)
 	return "";
 }
 
-static void discard_output() { /* TODO */ }
+static void discard_output()
+{
+	/* TODO */
+}
 
 // libcgi end.
 
-typedef unsigned int uint;
-
-union word
-  { word(int nx)   { n = nx; }
-    word(char *sx) { s = sx; }
-    int n; char *s;
-  };
-
-extern "C"
-  { char *getenv(const char*);
-    double atof(const char*);
-    int atoi(const char*);
-    void umask(uint);
-  };
-
-static double samplerate, graph_a1, graph_a2;
-static int nirsteps;
-static char expid[16], mypid[16];
-
-static void /* newhandler(),*/ logaccess(), checkreferrer(), printheader(), summarize();
-static void mkfilter(), mkmagphasegraph(), mktimegraphs(), dlcoeffs()/*, redirect(char*) */;
-static void obeycmd(char*, bool);
-static FILE *do_popen(char*);
-static void do_pclose(FILE*);
-static void makefiltercmd(char*), makeres(char*, int&), makepif(char*, int&), maketrad(char*, int&);
-static double getalpha(const char*, uint);
-static double getfval(const char*, uint);
-static int getival(const char*, uint);
-static void appendptype(char*, int&, const char*);
-static void appends(char*, int&, const char*, const char* = NULL, const char* = NULL, const char* = NULL);
-static void appendi(char*, int&, const char*, int = 0, int = 0);
-static void appendf(char*, int&, const char*, double = 0.0, double = 0.0);
-static void printtrailer();
-static void hfatal(const char*, ...);
-
-inline bool seq(const char *s1, const char *s2)    { return strcmp(s1,s2) == 0;		  }
-inline bool starts(const char *s1, const char *s2) { return strncmp(s1, s2, strlen(s2)) == 0; }
-
 
 int main(int, char **)
-  { // set_new_handler(newhandler);
+  { std::set_new_handler(newhandler);
     umask(022);				   /* make files written to tmpdir readable by server */
     bool pt = true; /* print trailer? */
-    printheader();
     getentries();
-    summarize();
+	bool dl = isset("dlcoeffs");
+	if (!dl)
+	{
+		printheader();
+		summarize();
+	}
     logaccess();
     checkreferrer();
     mkfilter();
@@ -154,7 +166,7 @@ int main(int, char **)
       { /* expand existing graph, or download code or coeffs */
 	if (isset("flim1")) mkmagphasegraph();
 	if (isset("nirsteps")) mktimegraphs();
-	if (isset("dlcoeffs"))
+	if (dl)
 	  { dlcoeffs();
 	    pt = false;
 	  }
@@ -163,9 +175,9 @@ int main(int, char **)
     exit(0);
   }
 
-//static void newhandler()
-//  { hfatal("No room!");
-//  }
+static void newhandler()
+  { hfatal("No room!");
+  }
 
 static void logaccess()
   { char str[16]; sprintf(str, "%07d", 13579); //uniqueid());
@@ -192,7 +204,7 @@ static void printheader()
     printf("<HTML>\n\n");
     printf("<title> Filter Design Results </title>\n");
     printf("<h1> Filter Design Results </h1>\n");
-    printf("Generated by: &nbsp; <a href=%s>%s</a> <p>\n", MY_URL, MY_URL);
+    printf("Generated by: &nbsp; <a href=/>%s</a> <p>\n", MY_URL);
   }
 
 static void summarize()

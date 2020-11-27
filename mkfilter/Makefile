@@ -14,7 +14,7 @@ cgi-bin/mkfscript: mkfscript
 	cp mkfscript cgi-bin/mkfscript
 
 $(objs): %.o: %.C
-	g++ -W -Wall -c $< -o $@
+	g++ -O2 -W -Wall -c $< -o $@
 
 clean:
 	rm -f $(objs) mkfscript
