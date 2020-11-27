@@ -98,7 +98,7 @@ static float cheb5[TABSIZE] =
   };
 
 struct FtInfo
-  { char *str;
+  { const char *str;
     float *ptr;
   };
 
@@ -112,9 +112,8 @@ static FtInfo ftinfo[] =
     { NULL,	     NULL   },
   };
 
-global float *coeffs(char *s)
+float *coeffs(const char *s)
   { int k = 0;
     until (ftinfo[k].str == NULL || seq(ftinfo[k].str, s)) k++;
     return ftinfo[k].ptr;
   }
-

@@ -2,19 +2,24 @@
    based on mkfscript/mkfilter etc.
    AJF	 September 1999
 */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
+#include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <new.h>
-#include <libcgi.h>
+#include <new>
 
 #include "lcfilter.h"
 
 #define TWOPI	    (2.0 * M_PI)
 
-#define TEMP_DIR    "/www/usr/fisher/tmpdir/misc"
-#define SOLVECCT    "/www/usr/fisher/helpers/solvecct"
+#define TEMP_DIR    "./output"
+#define SOLVECCT    "./helpers/solvecct"
 #define MY_URL	    "http://www-users.cs.york.ac.uk/~fisher/lcfilter"
 
 /* 2nd arg. to getfval */
@@ -54,6 +59,7 @@ private:
 
 int compo::nums[3] = { 0, 0, 0 };
 
+#if 0
 extern "C"
   { char *getenv(char*);
     double atof(char*);
@@ -61,6 +67,7 @@ extern "C"
     void umask(uint);
     void *realloc(void*, uint);
   };
+#endif
 
 static void newhandler(), summarize(), prentries(int);
 static void logaccess(), checkreferrer(), redirect(char*);
@@ -71,31 +78,102 @@ static void calcmatch(double, double, double, double&, double&, double&);
 static void outputrecalcfunc(double), refinevalues(compo**, int);
 static compo *resonate(compo*, double);
 static void makecircuit(compo**, int, double, double);
-static void copyerrors(char*), copyhtml(char*, compo**, int);
+static void copyerrors(const char*), copyhtml(const char*, compo**, int);
 static void output_cvform(FILE*, char*, bool&, compo**, int);
 static void output_graphform();
-static bool getline(FILE*, char*);
+static bool getline_(FILE*, char*);
 static void writecct(FILE *fi, compo**, int);
 static void wrcomp(FILE*, int, int, int, double, int, int, int, int);
-static void makefilename(char*, char*);
-static double getfval(char*, uint);
-static int getival(char*, uint);
-static char *copystring(char*);
-static void hfatal(char*, word = 0);
+static void makefilename(const char*, char*);
+static double getfval(const char*, uint);
+static int getival(const char*, uint);
+static char *copystring(const char*);
+static void hfatal(const char*, ...);
 
+// libcgi quick replacement:
+
+#include <vector>
+#include <cgicc/Cgicc.h>
+
+struct entry
+{
+private:
+	std::string name;
+	std::string value;
+
+public:
+	const char* const nam;
+	const char* const val;
+
+	entry(const std::string& n, const std::string& v) : name(n), value(v), nam(name.c_str()), val(value.c_str()) {}
+	entry(entry const& other) : name(other.nam), value(other.val), nam(name.c_str()), val(value.c_str()) {}
+};
+
+std::vector<entry> entries;
+static size_t numentries;
+
+static void getentries()
+{
+	try {
+		cgicc::Cgicc cgi;
+		const std::vector<cgicc::FormEntry>& fes = cgi.getElements();
+
+		for (std::vector<cgicc::FormEntry>::const_iterator fe = fes.begin(); fe != fes.end(); fe++)
+		{
+			entry e(fe->getName(), fe->getValue());
+			entries.push_back(e);
+		}
+
+		numentries = entries.size();
+
+	} catch (std::exception const& e) {
+		hfatal("Exception: %s!", e.what());
+	} catch (...) {
+		hfatal("Exception!");
+	}
+}
+
+static bool isset(const char* key)
+{
+	for (std::vector<entry>::const_iterator e = entries.begin(); e != entries.end(); e++)
+	{
+		if (!strcmp(key, e->nam))
+			return true;
+	}
+
+	return false;
+}
+
+static const char* getval(const char* key)
+{
+	for (std::vector<entry>::const_iterator e = entries.begin(); e != entries.end(); e++)
+	{
+		if (!strcmp(key, e->nam))
+			return e->val;
+	}
+
+	return "";
+}
+
+static void discard_output()
+{
+	/* TODO */
+}
+
+// libcgi end.
 inline bool is_refine_param(entry *e)
-  { char *key = e -> nam;
+  { const char *key = e -> nam;
     return seq(key,"refine") || (key[0] >= 'A' && key[0] <= 'Z');
   }
 
 inline bool is_graph_param(entry *e)
-  { char *key = e -> nam;
+  { const char *key = e -> nam;
     return seq(key,"minf") || seq(key,"maxf") || seq(key,"logmin");
   }
 
 
-global void main(int argc, char *argv[])
-  { set_new_handler(newhandler);
+int main(int argc, char *argv[])
+  { std::set_new_handler(newhandler);
     umask(022);		/* make files written to tmpdir readable by server */
     writeheader();
     getentries();
@@ -131,37 +209,75 @@ static void prentries(int code)
     printf("   </table>\n");
   }
 
+static void cleanup();
+
+static const char* uniqueid()
+{
+  static char* unique = NULL;
+  static char  tmplate[] = TEMP_DIR "/tmpXXXXXX";
+
+  if (!unique)
+  {
+    char* result = mkdtemp(tmplate);
+    if (result == NULL)
+    {
+      hfatal("create temporary directory: %s", strerror(errno));
+    }
+    unique = strrchr(result, '/');
+    unique++;
+    
+    atexit(cleanup); // remove empty directories
+  }
+  
+  return unique;
+}
+
+static void cleanup()
+{
+  char dirname[] = TEMP_DIR "/tmpXXXXXX";
+  const char *unique = uniqueid();
+  
+  snprintf(dirname + sizeof(dirname) - 10, 10, "%s", unique);
+  (void)rmdir(dirname);
+}
+
+static void logweb(const char *prefix, const char* message)
+{
+  fprintf(stderr, "%s: %s\n", prefix, message);
+}
+
 static void logaccess()
-  { char str[16]; sprintf(str, "%07d", uniqueid());
-    logweb("lcfilter", str);
+  { const char* id = uniqueid();
+    logweb("lcfilter", id);
   }
 
 static void checkreferrer()
-  { char *s = getenv("HTTP_REFERER");
-    if (s == NULL || !starts(s, "http://www-users.cs.york.ac.uk/~fisher/"))
-      { char url[MAXSTR+1];
-	sprintf(url, "%s/bootleg.html", MY_URL);
-	redirect(url);
-	exit(0);
-      }
+  { return;
+//    char *s = getenv("HTTP_REFERER");
+//    if (s == NULL || !starts(s, "http://www-users.cs.york.ac.uk/~fisher/"))
+//      { char url[MAXSTR+1];
+//	sprintf(url, "%s/bootleg.html", MY_URL);
+//	redirect(url);
+//	exit(0);
+//      }
   }
 
-static void redirect(char *url)
-  { discard_output();
-    printf("Status: 301 Moved Permanently\n");
-    printf("Content-type: text/html\n");
-    printf("Location: %s\n\n", url);
-    printf("<HTML>\n");
-    printf("<title> Automatic Redirection </title>\n");
-    printf("You are redirected <a href=%s>here</a>. <br>\n", url);
-  }
+//static void redirect(char *url)
+//  { discard_output();
+//    printf("Status: 301 Moved Permanently\n");
+//    printf("Content-type: text/html\n");
+//    printf("Location: %s\n\n", url);
+//    printf("<HTML>\n");
+//    printf("<title> Automatic Redirection </title>\n");
+//    printf("You are redirected <a href=%s>here</a>. <br>\n", url);
+//  }
 
 static void writeheader()
   { printf("Content-type: text/html\n\n");
     printf("<HTML>\n");
     printf("<title> Filter Design Results </title>\n");
     printf("<h1> Filter Design Results </h1>\n");
-    printf("Generated by: &nbsp; <a href=%s>%s</a> <p>\n", MY_URL, MY_URL);
+    printf("Generated by: &nbsp; <a href=\"/\">%s</a> <p>\n", MY_URL);
     printf("<noscript>\n");
     printf("   <h3> <img src=//www.york.ac.uk/icons/warning.gif>\n");
     printf("        <font color=#ff0000> Please enable JavaScript! </font> </h3>\n");
@@ -177,10 +293,10 @@ static void writefooter()
   }
 
 static void genfilter()
-  { char *ft = getval("filtertype");
+  { const char *ft = getval("filtertype");
     float *co = coeffs(ft);
     if (co == NULL) hfatal("Don't know about filter type ``%s''.", ft);
-    char *ct = getval("config");
+    const char *ct = getval("config");
     unless (seq(ct,"series_first") || seq(ct,"shunt_first")) hfatal("Bad config type: %s", ct);
     bool p = (ct[1] == 'e');
     int n = getival("order", MB_PRES | MB_GE0);
@@ -197,7 +313,7 @@ static void genfilter()
 	computematchnet(lcv, j, rs, imped, mq, mf);
       }
     else lcv[j++] = new compo(RES, SERIES, imped);  /* source resistance */
-    char *pt = getval("passtype");
+    const char *pt = getval("passtype");
     if (seq(pt,"Lowpass") || seq(pt,"Highpass"))
       { bool hp = (pt[0] == 'H');
 	double f = getfval("corner1", MB_PRES);
@@ -306,14 +422,14 @@ static void makecircuit(compo **lcv, int n, double minf, double maxf)
     double logmin = getfval("logmin", MB_LT0);  /* 0.0 if not specified */
     if (logmin != 0.0) fprintf(fi, "logmin=%g\n", logmin);
     fclose(fi);
-    char cmd[MAXSTR+1];
+    char cmd[4*MAXSTR+1];
     sprintf(cmd, "%s %s %s 2>%s 1>&2", SOLVECCT, datfn, htmlfn, errfn);
     int code = system(cmd);	/* read datfn, write htmlfn, errs to errfn */
     if (code != 0) copyerrors(errfn); else copyhtml(htmlfn, lcv, n);
     unlink(errfn);
   }
 
-static void copyerrors(char *ifn)
+static void copyerrors(const char *ifn)
   { FILE *ifi = fopen(ifn, "r");
     if (ifi == NULL) hfatal("Can't open %s", ifn);
     printf("<h2> Errors! </h2>\n");
@@ -329,33 +445,33 @@ static void copyerrors(char *ifn)
     fclose(ifi);
   }
 
-static void copyhtml(char *ifn, compo **lcv, int n)
+static void copyhtml(const char *ifn, compo **lcv, int n)
   { FILE *ifi = fopen(ifn, "r");
     if (ifi == NULL) hfatal("Can't open %s", ifn);
     char line[MAXSTR+1]; bool ok;
-    ok = getline(ifi, line);
+    ok = getline_(ifi, line);
     while (ok && (line[0] == '\0' || starts(line, "<HTML>") || starts(line, "<title>") || starts(line, "<h1>")))
-      { ok = getline(ifi, line);
+      { ok = getline_(ifi, line);
       }
     while (ok && !(starts(line, "<h2> Component Values </h2>") || starts(line, "<hr>")))
       { printf("%s\n", line);
-	ok = getline(ifi, line);
+	ok = getline_(ifi, line);
       }
     if (starts(line, "<h2> Component Values </h2>"))
       { printf("%s\n", line);
-	ok = getline(ifi, line);
+	ok = getline_(ifi, line);
 	output_cvform(ifi, line, ok, lcv, n);
       }
     while (ok && !(starts(line, "<h2> Voltmeter Readings </h2>") || starts(line, "<hr>")))
       { printf("%s\n", line);
-	ok = getline(ifi, line);
+	ok = getline_(ifi, line);
       }
     if (starts(line, "<h2> Voltmeter Readings </h2>"))
       { output_graphform();
       }
     while (ok && !starts(line, "<hr>"))
       { printf("%s\n", line);
-	ok = getline(ifi, line);
+	ok = getline_(ifi, line);
       }
     fclose(ifi);
   }
@@ -384,7 +500,7 @@ static void output_cvform(FILE *ifi, char *line, bool &ok, compo **lcv, int n)
 	      }
 	  }
 	putchar('\n');
-	ok = getline(ifi, line);
+	ok = getline_(ifi, line);
       }
     printf("   <ul>\n");
     printf("      <input type=submit value=\"Do Not Press!\"> &nbsp; &nbsp;\n");
@@ -405,7 +521,7 @@ static void output_graphform()
     printf("</ul> </form>\n");
   }
 
-static bool getline(FILE *ifi, char *line)
+static bool getline_(FILE *ifi, char *line)
   { if (fgets(line, MAXSTR, ifi) == NULL) return false;
     int len = strlen(line);
     while (len > 0 && line[len-1] == '\n') line[--len] = '\0';
@@ -438,16 +554,16 @@ static void writecct(FILE *fi, compo **lcv, int n)
     fprintf(fi, "End\n");
   }
 
-static void wrcomp(FILE *fi, int ty, int or, int len, double val, int x, int y, int n1, int n2)
-  { fprintf(fi, "%d %d %d %g %d %d %d %d\n", ty, or, len, val, x, y, n1, n2);
+static void wrcomp(FILE *fi, int ty, int or_, int len, double val, int x, int y, int n1, int n2)
+  { fprintf(fi, "%d %d %d %g %d %d %d %d\n", ty, or_, len, val, x, y, n1, n2);
   }
 
-static void makefilename(char *sfx, char *path)
-  { sprintf(path, "%s/%07d.%s", TEMP_DIR, uniqueid(), sfx);
+static void makefilename(const char *sfx, char *path)
+  { sprintf(path, "%s/%s/lcfilter.%s", TEMP_DIR, uniqueid(), sfx);
   }
 
-static double getfval(char *key, uint chk)
-  { char *val = isset(key) ? getval(key) : "";
+static double getfval(const char *key, uint chk)
+  { const char *val = isset(key) ? getval(key) : "";
     if (val[0] == '\0')
       { if (chk & MB_PRES) hfatal("You must specify a value for ``%s''.", key);
 	return 0.0;	/* means "none specified" */
@@ -460,8 +576,8 @@ static double getfval(char *key, uint chk)
     return dval;
   }
 
-static int getival(char *key, uint chk)
-  { char *val = isset(key) ? getval(key) : "";
+static int getival(const char *key, uint chk)
+  { const char *val = isset(key) ? getval(key) : "";
     if (val[0] == '\0')
       { if (chk & MB_PRES) hfatal("You must specify a value for ``%s''.", key);
 	return 0;	/* means "none specified" */
@@ -474,8 +590,8 @@ static int getival(char *key, uint chk)
     return ival;
   }
 
-compo::compo(int ty, int or, double xv)
-  { type = ty; orient = or; val = xv;
+compo::compo(int ty, int or_, double xv)
+  { type = ty; orient = or_; val = xv;
     int n = ty-RES;
     if (n < 0 || n > 2) hfatal("Bug! ty=%d", ty);
     char vec[16]; sprintf(vec, "%c%d", "RCL"[n], ++nums[n]);
@@ -483,14 +599,16 @@ compo::compo(int ty, int or, double xv)
     partner = NULL;
   }
 
-static char *copystring(char *s)
+static char *copystring(const char *s)
   { int len = strlen(s);
     return strcpy(new char[len+1], s);
   }
 
-static void hfatal(char *msg, word p1)
-  { printf("<h2> Error! </h2>\n");
-    printf(msg, p1); printf(" <br>\n");
+static void __attribute__((noreturn)) hfatal(const char *msg, ...)
+  { va_list ap;
+    printf("<h2> Error! </h2>\n");
+    va_start(ap, msg);
+    vprintf(msg, ap); printf(" <br>\n");
+    va_end(ap);
     exit(0);
   }
-
