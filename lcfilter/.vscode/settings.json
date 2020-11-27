@@ -1,0 +1,7 @@
+{
+    "editor.tabSize": 8,
+    "files.associations": {
+        "lcfilter.C": "cpp",
+        "coeffs.C": "cpp"
+    }
+}
