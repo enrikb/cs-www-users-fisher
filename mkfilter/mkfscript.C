@@ -4,10 +4,12 @@
 */
 
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <new>
 #include <math.h>
@@ -41,12 +43,6 @@ union word
     int n; char *s;
   };
 
-extern "C"
-  { char *getenv(const char*);
-    double atof(const char*);
-    int atoi(const char*);
-    void umask(uint);
-  };
 
 static double samplerate, graph_a1, graph_a2;
 static int nirsteps;
@@ -97,11 +93,11 @@ static void getentries()
 {
 	try {
 		cgicc::Cgicc cgi;
-		auto const& fes = cgi.getElements();
+		const std::vector<cgicc::FormEntry>& fes = cgi.getElements();
 
-		for (auto const& fe: fes)
+		for (std::vector<cgicc::FormEntry>::const_iterator fe = fes.begin(); fe != fes.end(); fe++)
 		{
-			entry e(fe.getName(), fe.getValue());
+			entry e(fe->getName(), fe->getValue());
 			entries.push_back(e);
 		}
 
@@ -118,9 +114,9 @@ static void getentries()
 
 static bool isset(const char* key)
 {
-	for (auto const& e: entries)
+	for (std::vector<entry>::const_iterator e = entries.begin(); e != entries.end(); e++)
 	{
-		if (!strcmp(key, e.nam))
+		if (!strcmp(key, e->nam))
 			return true;
 	}
 
@@ -129,10 +125,10 @@ static bool isset(const char* key)
 
 static const char* getval(const char* key)
 {
-	for (auto const& e: entries)
+	for (std::vector<entry>::const_iterator e = entries.begin(); e != entries.end(); e++)
 	{
-		if (!strcmp(key, e.nam))
-			return e.val;
+		if (!strcmp(key, e->nam))
+			return e->val;
 	}
 
 	return "";
@@ -182,9 +178,36 @@ static void newhandler()
   { hfatal("No room!");
   }
 
-static unsigned uniqueid()
+static void cleanup();
+
+static const char* uniqueid()
 {
-  return getpid();
+  static char* unique = NULL;
+  static char  tmplate[] = TEMP_DIR "/tmpXXXXXX";
+
+  if (!unique)
+  {
+    char* result = mkdtemp(tmplate);
+    if (result == NULL)
+    {
+      hfatal("create temporary directory: %s", strerror(errno));
+    }
+    unique = strrchr(result, '/');
+    unique++;
+    
+    atexit(cleanup); // remove empty directories
+  }
+  
+  return unique;
+}
+
+static void cleanup()
+{
+  char dirname[] = TEMP_DIR "/tmpXXXXXX";
+  const char *unique = uniqueid();
+  
+  snprintf(dirname + sizeof(dirname) - 10, 10, "%s", unique);
+  (void)rmdir(dirname);
 }
 
 static void logweb(const char *prefix, const char* message)
@@ -193,8 +216,8 @@ static void logweb(const char *prefix, const char* message)
 }
 
 static void logaccess()
-  { char str[16]; sprintf(str, "%07d", uniqueid());
-    logweb("mkfilter", str);
+  { const char* id = uniqueid();
+    logweb("mkfilter", id);
   }
 
 static void checkreferrer()
@@ -233,7 +256,7 @@ static void summarize()
 
 static void mkfilter()
   { samplerate = getfval("samplerate", MB_PRES | MB_GT0);
-    sprintf(mypid, "%07d", uniqueid());
+    sprintf(mypid, "%s", uniqueid());
     if (isset("expid"))
       { /* expand a previously-created graph */
 	strcpy(expid, getval("expid")); /* identifies parent .mkf file */
@@ -265,9 +288,9 @@ static void mkfilter()
 	makefiltercmd(cmd);
 	obeycmd(cmd, true);
 	printf("<h2> Ansi ``C'' Code </h2>\n");
-	int len = strlen(cmd); sprintf(&cmd[len], "-l >%s/%s.mkf", TEMP_DIR, expid);
+	int len = strlen(cmd); sprintf(&cmd[len], "-l >%s/%s/params.mkf", TEMP_DIR, expid);
 	obeycmd(cmd, true);
-	sprintf(cmd, "cat %s/%s.mkf | %s/gencode", TEMP_DIR, expid, TOOLS_DIR);
+	sprintf(cmd, "cat %s/%s/params.mkf | %s/gencode", TEMP_DIR, expid, TOOLS_DIR);
 	obeycmd(cmd, true);
 	printf("<form method=POST>\n");
 	printf("    Download code and/or coefficients:\n");
@@ -290,13 +313,13 @@ static void mkmagphasegraph()
     printf("<li> <i>y</i> axis (red): magnitude (%s, normalized)\n", (logmin != 0.0) ? "logarithmic" : "linear");
     printf("<li> <i>y</i> axis (blue): phase\n");
     printf("</ul> <p>\n");
-    appends(cmd, p, "cat %s/%s.mkf | %s/genplot ", TEMP_DIR, expid, TOOLS_DIR);
+    appends(cmd, p, "cat %s/%s/params.mkf | %s/genplot ", TEMP_DIR, expid, TOOLS_DIR);
     appendf(cmd, p, "-a %17.10e %17.10e ", graph_a1, graph_a2);
     if (logmin != 0.0) appendf(cmd, p, "-log %17.10e ", logmin);
     if (seq(ftype, "Raised Cosine") || seq(ftype, "Hilbert Transformer")) appends(cmd, p, "-d ");
-    appends(cmd, p, "%s/%sF.gif", TEMP_DIR, mypid);
+    appends(cmd, p, "%s/%s/F.gif", TEMP_DIR, mypid);
     obeycmd(cmd, true);
-    printf("<img src=%s/%sF.gif> <p>\n", TEMP_URL, mypid);
+    printf("<img src=%s/%s/F.gif> <p>\n", TEMP_URL, mypid);
     printf("For an expanded view, enter frequency limits (as a fraction of the sampling rate) here: <br>\n");
     printf("<form method=POST>\n");
     printf("    <input type=hidden name=expid value=%s>\n", expid);
@@ -317,18 +340,18 @@ static void mktimegraphs()
     printf("(i.e. %g represents 1 second)\n", samplerate);
     printf("<li> <i>y</i> axis (red): filter response (linear, normalized)\n");
     printf("</ul> <p>\n");
-    sprintf(cmd, "cat %s/%s.mkf | %s/genplot -i %d %s/%sT.gif", TEMP_DIR, expid, TOOLS_DIR, nirsteps, TEMP_DIR, mypid);
+    sprintf(cmd, "cat %s/%s/params.mkf | %s/genplot -i %d %s/%s/T.gif", TEMP_DIR, expid, TOOLS_DIR, nirsteps, TEMP_DIR, mypid);
     obeycmd(cmd, true);
-    printf("<img src=%s/%sT.gif> <p>\n", TEMP_URL, mypid);
+    printf("<img src=%s/%s/T.gif> <p>\n", TEMP_URL, mypid);
     printf("<h2> Step response </h2>\n");
     printf("<ul>\n");
     printf("<li> <i>x</i> axis: time, in samples\n");
     printf("(i.e. %g represents 1 second)\n", samplerate);
     printf("<li> <i>y</i> axis (red): filter response (linear, normalized)\n");
     printf("</ul> <p>\n");
-    sprintf(cmd, "cat %s/%s.mkf | %s/genplot -s %d %s/%sS.gif", TEMP_DIR, expid, TOOLS_DIR, nirsteps, TEMP_DIR, mypid);
+    sprintf(cmd, "cat %s/%s/params.mkf | %s/genplot -s %d %s/%s/S.gif", TEMP_DIR, expid, TOOLS_DIR, nirsteps, TEMP_DIR, mypid);
     obeycmd(cmd, true);
-    printf("<img src=%s/%sS.gif> <p>\n", TEMP_URL, mypid);
+    printf("<img src=%s/%s/S.gif> <p>\n", TEMP_URL, mypid);
     printf("For a view on a different scale, enter upper time limit (integer number of samples) here: <br>\n");
     printf("<form method=POST>\n");
     printf("    <input type=hidden name=expid value=%s>\n", expid);
@@ -344,7 +367,7 @@ static void dlcoeffs()
     discard_output();
     printf("Content-type: text/saveme\n\n");
     char cmd[MAXSTR+1];
-    sprintf(cmd, "cat %s/%s.mkf | %s/gencode %s", TEMP_DIR, expid, TOOLS_DIR, lang);
+    sprintf(cmd, "cat %s/%s/params.mkf | %s/gencode %s", TEMP_DIR, expid, TOOLS_DIR, lang);
     obeycmd(cmd, false);
   }
 

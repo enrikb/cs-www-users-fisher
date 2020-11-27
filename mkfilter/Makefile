@@ -5,7 +5,7 @@ objs   = mkfscript.o
 all: mkfscript
 
 mkfscript: $(objs)
-	g++ $(objs) -lcgicc -lm -o $@
+	$(CXX) $(objs) -lcgicc -lm -o $@
 
 install: cgi-bin/mkfscript
 
@@ -16,9 +16,12 @@ cgi-bin/mkfscript: mkfscript
 	cp mkfscript cgi-bin/mkfscript
 
 $(objs): %.o: %.C
-	g++ -O2 -W -Wall -c $< -o $@
+	$(CXX) -O2 -W -Wall -c $< -o $@
 
 clean:
 	rm -f $(objs) mkfscript
+
+compile_commands.json: Makefile
+	compiledb --command-style --full-path -n make
 
 .PHONY: install clean

@@ -6,7 +6,7 @@
                 "${workspaceFolder}/**"
             ],
             "defines": [],
-            "compilerPath": "/usr/bin/g++",
+            "compilerPath": "/usr/bin/gcc",
             "compileCommands": "${workspaceFolder}/compile_commands.json"
         }
     ],
