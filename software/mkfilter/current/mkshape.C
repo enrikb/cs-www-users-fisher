@@ -2,8 +2,8 @@
    A.J. Fisher, University of York   <fisher@minster.york.ac.uk>
    November 1996 */
 
+#include <stdarg.h>
 #include <stdio.h>
-#include <math.h>
 
 #include "mkfilter.h"
 #include "complex.h"
@@ -26,16 +26,16 @@ static double xcoeffs[MAXPZ+1];
 static complex circle[SEQLEN/2];
 
 static void readcmdline(char**);
-static double getf(char*);
-static int geti(char*);
+static double getf(const char*);
+static int geti(const char*);
 static void usage(), initcircle(), computefilter(), compute_rc(), compute_ht();
 static void apply_window(), trunc_coeffs();
 static void printresults(char**), printcmdline(char**);
 static void fft(complex*, complex*, int);
-static void giveup(char*, int = 0);
+static void giveup(const char*, ...);
 
 
-global void main(int argc, char **argv)
+int main(int /*argc*/, char **argv)
   { readcmdline(argv);
     if (options & opt_l)
       { computefilter();
@@ -83,12 +83,12 @@ static void readcmdline(char **argv)
     unless (argv[ap] == NULL) usage();
   }
 
-static double getf(char *s)
+static double getf(const char *s)
   { if (s == NULL) usage();
     return atof(s);
   }
 
-static int geti(char *s)
+static int geti(const char *s)
   { if (s == NULL) usage();
     return atoi(s);
   }
@@ -246,8 +246,11 @@ static void fft(complex *data, complex *temp, int n)
       }
   }
 
-static void giveup(char *msg, int p1)
-  { fprintf(stderr, "mkshape: "); fprintf(stderr, msg, p1); putc('\n', stderr);
+static void __attribute__((noreturn)) giveup(const char *msg, ...)
+  { va_list va;
+    va_start(va, msg);
+    fprintf(stderr, "mkshape: "); vfprintf(stderr, msg, va); putc('\n', stderr);
+    va_end(va);
     exit(1);
   }
 

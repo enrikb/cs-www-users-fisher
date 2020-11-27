@@ -1,3 +1,8 @@
+#ifndef COMPLEX_H
+#define COMPLEX_H
+
+#include <math.h>
+
 struct c_complex
   { double re, im;
   };
@@ -61,3 +66,4 @@ inline complex sqr(complex z)
   { return z*z;
   }
 
+#endif /* COMPLEX_H */

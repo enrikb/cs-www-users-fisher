@@ -11,12 +11,12 @@
 #include "complex.h"
 
 static void rdcoeffs(char, int&, double*);
-static int rdint(char*);
-static double rddouble(char*);
-static void getline(char*, int&, int, char*), rdline(char*), formaterror(int);
+static int rdint(const char*);
+static double rddouble(const char*);
+static void getline(char*, int&, int, const char*), rdline(char*), formaterror(int);
 
 
-global void readdata(char *cmdline, double &pbgain, int &nzeros, double *xcoeffs, int &npoles, double *ycoeffs)
+void readdata(char *cmdline, double &pbgain, int &nzeros, double *xcoeffs, int &npoles, double *ycoeffs)
   { rdline(cmdline);
     pbgain = rddouble("G  = ");
     rdcoeffs('Z', nzeros, xcoeffs);
@@ -32,19 +32,19 @@ static void rdcoeffs(char c, int &n, double *coeffs)
     for (int i = 0; i <= n; i++) coeffs[i] = rddouble("");
   }
 
-static int rdint(char *exp)
+static int rdint(const char *exp)
   { char vec[MAXSTRING+1]; int p;
     getline(vec, p, 4, exp);
     return atoi(&vec[p]);
   }
 
-static double rddouble(char *exp)
+static double rddouble(const char *exp)
   { char vec[MAXSTRING+1]; int p;
     getline(vec, p, 5, exp);
     return atof(&vec[p]);
   }
 
-static void getline(char *vec, int &p, int e, char *exp)
+static void getline(char *vec, int &p, int e, const char *exp)
   { rdline(vec);
     p = strlen(exp);
     unless (memcmp(vec, exp, p) == 0) formaterror(e);

@@ -3,9 +3,14 @@
    A.J. Fisher, University of York   <fisher@minster.york.ac.uk>
    September 1992 */
 
+#ifndef MKFILTER_H_
+#define MKFILTER_H_
+
+#include <math.h>
+#include <string.h>
+
 /* Header file */
 
-#define global
 #define unless(x)   if(!(x))
 #define until(x)    while(!(x))
 
@@ -22,18 +27,12 @@
 typedef void (*proc)();
 typedef unsigned int uint;
 
-extern "C"
-  { double atof(const char*);
-    int atoi(char*);
-    void exit(int);
-  };
-
-extern char *progname;
+extern const char *progname;
 extern void readdata(char*, double&, int&, double*, int&, double*);
 
 inline double sqr(double x)	    { return x*x;			       }
-inline bool seq(char *s1, char *s2) { return strcmp(s1,s2) == 0;	       }
-inline bool onebit(uint m)	    { return (m != 0) && ((m & m-1) == 0);     }
+inline bool seq(const char *s1, const char *s2) { return strcmp(s1,s2) == 0;	       }
+inline bool onebit(uint m)	    { return (m != 0) && ((m & (m-1)) == 0);     }
 
 inline double asinh(double x)
   { /* Microsoft C++ does not define */
@@ -45,3 +44,4 @@ inline double fix(double x)
     return (x >= 0.0) ? floor(0.5+x) : -floor(0.5-x);
   }
 
+#endif /* MKFILTER_H_ */

@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "mkfilter.C": "cpp",
+        "mkfilter.h": "cpp",
+        "complex.C": "cpp",
+        "complex.h": "cpp",
+        "mkshape.C": "cpp",
+        "mkaverage.C": "cpp",
+        "gencode.C": "cpp",
+        "readdata.C": "cpp",
+        "genplot.C": "cpp"
+    }
+}

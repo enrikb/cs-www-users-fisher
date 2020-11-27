@@ -5,8 +5,6 @@
 
 /* Routines for complex arithmetic */
 
-#include <math.h>
-
 #include "mkfilter.h"
 #include "complex.h"
 
@@ -14,7 +12,7 @@ static complex eval(complex[], int, complex);
 static double Xsqrt(double);
 
 
-global complex evaluate(complex topco[], int nz, complex botco[], int np, complex z)
+complex evaluate(complex topco[], int nz, complex botco[], int np, complex z)
   { /* evaluate response, substituting for z */
     return eval(topco, nz, z) / eval(botco, np, z);
   }
@@ -26,7 +24,7 @@ static complex eval(complex coeffs[], int npz, complex z)
     return sum;
   }
 
-global complex csqrt(complex x)
+complex csqrt(complex x)
   { double r = hypot(x);
     complex z = complex(Xsqrt(0.5 * (r + x.re)),
 			Xsqrt(0.5 * (r - x.re)));
@@ -40,20 +38,20 @@ static double Xsqrt(double x)
     return (x >= 0.0) ? sqrt(x) : 0.0;
   }
 
-global complex cexp(complex z)
+complex cexp(complex z)
   { return exp(z.re) * expj(z.im);
   }
 
-global complex expj(double theta)
+complex expj(double theta)
   { return complex(cos(theta), sin(theta));
   }
 
-global complex operator * (complex z1, complex z2)
+complex operator * (complex z1, complex z2)
   { return complex(z1.re*z2.re - z1.im*z2.im,
 		   z1.re*z2.im + z1.im*z2.re);
   }
 
-global complex operator / (complex z1, complex z2)
+complex operator / (complex z1, complex z2)
   { double mag = (z2.re * z2.re) + (z2.im * z2.im);
     return complex (((z1.re * z2.re) + (z1.im * z2.im)) / mag,
 		    ((z1.im * z2.re) - (z1.re * z2.im)) / mag);

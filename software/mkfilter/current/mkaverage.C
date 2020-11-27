@@ -2,9 +2,9 @@
    A.J. Fisher, University of York   <fisher@minster.york.ac.uk>
    July 1998 */
 
+#include <stdarg.h>
 #include <stdio.h>
-#include <math.h>
-#include <string.h>
+#include <stdlib.h>
 
 #include "mkfilter.h"
 
@@ -14,10 +14,10 @@ static int numcoeffs;
 static void readcmdline(char**);
 static void usage();
 static void printresults(char**), printcmdline(char**);
-static void giveup(char*, int = 0);
+static void giveup(const char*, ...);
 
 
-global int main(int argc, char *argv[])
+int main(int /*argc*/, char *argv[])
   { readcmdline(argv);
     if (lflag) printresults(argv); else printf("OK!\n");
     return 0;
@@ -65,8 +65,11 @@ static void printcmdline(char *argv[])
     putchar('\n');
  }
 
-static void giveup(char *msg, int p1)
-  { fprintf(stderr, "mkaverage: "); fprintf(stderr, msg, p1); putc('\n', stderr);
+static void giveup(const char *msg, ...)
+  { va_list ap;
+    va_start(ap, msg);
+    fprintf(stderr, "mkaverage: "); vfprintf(stderr, msg, ap); putc('\n', stderr);
+    va_end(ap);
     exit(1);
   }
 

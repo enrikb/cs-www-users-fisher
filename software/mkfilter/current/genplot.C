@@ -7,15 +7,14 @@
    http://www.boutell.com/gd
 */
 
+#include <stdarg.h>
 #include <stdio.h>
-#include <math.h>
-#include <string.h>
-#include <new.h>
+#include <stdlib.h>
 
-extern "C" {
-   #include <gd.h>
-   #include <gdfonts.h>
-};
+#include <new>
+
+#include <gd.h>
+#include <gdfonts.h>
 
 #include "mkfilter.h"
 #include "complex.h"
@@ -35,7 +34,7 @@ union word	/* for error msgs */
     word(void *px) { p = px; }
   };
 
-global char *progname;
+const char *progname;
 
 static enum { unknown, locus, phmag, impulse, step } gtype;    /* type of graph */
 static char *outfn;
@@ -53,16 +52,16 @@ static void locusgraph(char*, complex[], int, double&);
 static int xmap_lc(double), ymap_lc(double);
 static void frgraph(char*, complex[], int), irgraph(char*, double[], int);
 static void pgraph(gdImagePtr, double[], int, int, bool);
-static void draw_xtick(gdImagePtr, double, double, int, int, char*, double = 0.0);
-static void draw_ytick(gdImagePtr, double, double, int, int, char*, double = 0.0);
+static void draw_xtick(gdImagePtr, double, double, int, int, const char*, double = 0.0);
+static void draw_ytick(gdImagePtr, double, double, int, int, const char*, double = 0.0);
 static int xmap_pm(double), ymap_pm(double);
 static char *choosefmt(double, double);
 static void newhandler();
-static void giveup(char*, word = 0);
+static void giveup(const char*, ...);
 
 
-global void main(int argc, char *argv[])
-  { set_new_handler(newhandler);
+int main(int /*argc*/, char *argv[])
+  { std::set_new_handler(newhandler);
     readcmdline(argv);
     char junkv[MAXSTRING+1]; double junkd;
     readdata(junkv, junkd, nzeros, xcoeffs, npoles, ycoeffs);
@@ -248,7 +247,7 @@ static void frgraph(char *fn, complex fr[], int nsteps)
     if (dflag)
       { char str[MAXSTRING+1];
 	sprintf(str, "FILTER DELAY: %g SAMPLES.", 0.5 * nzeros);
-	gdImageString(im, gdFontSmall, 20, 10, str, black);
+	gdImageString(im, gdFontSmall, 20, 10, (unsigned char*)str, black);
       }
     gdImageLine(im, xmap_pm(0.0), ymap_pm(0.0), xmap_pm(1.0), ymap_pm(0.0), black); /* X axis	    */
     gdImageLine(im, xmap_pm(0.0), ymap_pm(0.0), xmap_pm(0.0), ymap_pm(1.0), black); /* left Y axis  */
@@ -335,22 +334,22 @@ static void pgraph(gdImagePtr im, double vec[], int nsteps, int col, bool wrapy)
       }
   }
 
-static void draw_xtick(gdImagePtr im, double x, double y, int col, int tlen, char *fmt, double val)
+static void draw_xtick(gdImagePtr im, double x, double y, int col, int tlen, const char *fmt, double val)
   { int ix = xmap_pm(x), iy = ymap_pm(y);
     gdImageLine(im, ix, iy, ix, iy+tlen, col);
     char str[32]; sprintf(str, fmt, val);
     int swid = strlen(str) * (gdFontSmall -> w);
-    gdImageString(im, gdFontSmall, ix - swid/2, iy + 2*tlen, str, col);
+    gdImageString(im, gdFontSmall, ix - swid/2, iy + 2*tlen, (unsigned char*)str, col);
   }
 
-static void draw_ytick(gdImagePtr im, double x, double y, int col, int tlen, char *fmt, double val)
+static void draw_ytick(gdImagePtr im, double x, double y, int col, int tlen, const char *fmt, double val)
   { int ix = xmap_pm(x), iy = ymap_pm(y);
     gdImageLine(im, ix, iy, ix+tlen, iy, col);
     char str[32]; sprintf(str, fmt, val);
     int swid = strlen(str) * (gdFontSmall -> w);
     int shgt = gdFontSmall -> h;
-    if (tlen < 0) gdImageString(im, gdFontSmall, ix + 2*tlen - swid, iy - shgt/2, str, col);
-    if (tlen > 0) gdImageString(im, gdFontSmall, ix + 2*tlen, iy - shgt/2, str, col);
+    if (tlen < 0) gdImageString(im, gdFontSmall, ix + 2*tlen - swid, iy - shgt/2, (unsigned char*)str, col);
+    if (tlen > 0) gdImageString(im, gdFontSmall, ix + 2*tlen, iy - shgt/2, (unsigned char*)str, col);
   }
 
 static int xmap_pm(double x)
@@ -363,7 +362,7 @@ static int ymap_pm(double y)
 
 static char *choosefmt(double a1, double a2)
   { /* choose smallest format such that all ticks are labelled distinctly */
-    static char fmt[10]; bool ok;
+    static char fmt[16]; bool ok;
     int p = 0;
     do
       { sprintf(fmt, "%%.%df", p++);
@@ -385,9 +384,12 @@ static void newhandler()
   { giveup("No room");
   }
 
-static void giveup(char *msg, word p1)
-  { fprintf(stderr, "genplot: ");
-    fprintf(stderr, msg, p1.i); putc('\n', stderr);
+static void __attribute__((noreturn)) giveup(const char *msg, ...)
+  { va_list ap;
+    fprintf(stderr, "genplot: ");
+    va_start(ap, msg);
+    vfprintf(stderr, msg, ap); putc('\n', stderr);
+    va_end(ap);
     exit(1);
   }
 

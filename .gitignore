@@ -1,0 +1,9 @@
+/mkfilter/helpers/
+/mkfilter/tmpdir/
+*.o
+compile_commands.json
+software/mkfilter/current/gencode
+software/mkfilter/current/genplot
+software/mkfilter/current/mkaverage
+software/mkfilter/current/mkfilter
+software/mkfilter/current/mkshape
