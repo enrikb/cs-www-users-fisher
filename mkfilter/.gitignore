@@ -1,3 +1,5 @@
 /*.o
 /mkfscript
 /cgi-bin
+/helpers
+/output

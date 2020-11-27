@@ -3,6 +3,9 @@
    AJF	 January 1996
 */
 
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -15,9 +18,9 @@
 
 #define MAXSTR	    256
 
-#define TEMP_DIR    "./tmpdir/misc"
+#define TEMP_DIR    "./output"
 #define TOOLS_DIR   "./helpers"
-#define TEMP_URL    "/tmpdir/misc"
+#define TEMP_URL    "/output"
 #define MY_URL	    "http://www-users.cs.york.ac.uk/~fisher/mkfilter"
 
 #define TWOPI	    (2.0 * M_PI)
@@ -179,9 +182,19 @@ static void newhandler()
   { hfatal("No room!");
   }
 
+static unsigned uniqueid()
+{
+  return getpid();
+}
+
+static void logweb(const char *prefix, const char* message)
+{
+  fprintf(stderr, "%s: %s\n", prefix, message);
+}
+
 static void logaccess()
-  { char str[16]; sprintf(str, "%07d", 13579); //uniqueid());
-    //logweb("mkfilter", str);
+  { char str[16]; sprintf(str, "%07d", uniqueid());
+    logweb("mkfilter", str);
   }
 
 static void checkreferrer()
@@ -220,7 +233,7 @@ static void summarize()
 
 static void mkfilter()
   { samplerate = getfval("samplerate", MB_PRES | MB_GT0);
-    sprintf(mypid, "%07d", 13579); //uniqueid());
+    sprintf(mypid, "%07d", uniqueid());
     if (isset("expid"))
       { /* expand a previously-created graph */
 	strcpy(expid, getval("expid")); /* identifies parent .mkf file */

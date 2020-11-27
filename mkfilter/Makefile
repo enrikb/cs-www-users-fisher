@@ -11,6 +11,8 @@ install: cgi-bin/mkfscript
 
 cgi-bin/mkfscript: mkfscript
 	mkdir cgi-bin 2>/dev/null || true
+	mkdir output 2>/dev/null || true
+	mkdir helpers 2>/dev/null || true
 	cp mkfscript cgi-bin/mkfscript
 
 $(objs): %.o: %.C
