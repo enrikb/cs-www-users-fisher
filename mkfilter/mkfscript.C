@@ -79,8 +79,8 @@ private:
 	std::string value;
 
 public:
-	const char* const nam;
-	const char* const val;
+	const char* nam;
+	const char* val;
 
 	entry(const std::string& n, const std::string& v) : name(n), value(v), nam(name.c_str()), val(value.c_str()) {}
 	entry(entry const& other) : name(other.nam), value(other.val), nam(name.c_str()), val(value.c_str()) {}

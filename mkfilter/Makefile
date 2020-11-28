@@ -1,11 +1,13 @@
 BUILTINS =
 
+CXXFLAGS = -O2 -W -Wall -std=c++98
+
 objs   = mkfscript.o
 
 all: mkfscript
 
 mkfscript: $(objs)
-	$(CXX) $(objs) -lcgicc -lm -o $@
+	$(CXX) $(CXXFLAGS) $(objs) -lcgicc -lm -o $@
 
 install: cgi-bin/mkfscript
 
@@ -16,7 +18,7 @@ cgi-bin/mkfscript: mkfscript
 	cp mkfscript cgi-bin/mkfscript
 
 $(objs): %.o: %.C
-	$(CXX) -O2 -W -Wall -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
 	rm -f $(objs) mkfscript
