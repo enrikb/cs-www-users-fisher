@@ -17,7 +17,7 @@ install: mkfscript
 	mkdir -p $(DESTDIR)www/mkfilter/rcdoc 2>/dev/null || true
 	cp mkfscript         $(DESTDIR)www/cgi-bin/mkfscript
 	cp *.html *.gif      $(DESTDIR)www/mkfilter/
-	cp rcdoc/rcdoc.ps.gz $(DESTDIR)www/mkfilter/rcdoc/
+	cp rcdoc/rcdoc.pdf $(DESTDIR)www/mkfilter/rcdoc/
 
 $(objs): %.o: %.C
 	$(CXX) $(CXXFLAGS) -c $< -o $@

@@ -27,7 +27,7 @@ install: mkfilter mkshape mkaverage gencode genplot
 			mkdir -p $(DESTDIR)www/mkfilter/doc 2>/dev/null || true
 			mkdir -p $(DESTDIR)www/software/mkfilter/current 2>/dev/null || true
 			cp mkfilter mkshape mkaverage gencode genplot $(DESTDIR)helpers
-			cp doc.ps.gz $(DESTDIR)www/mkfilter/doc/
+			cp doc.pdf $(DESTDIR)www/mkfilter/doc/
 			cp *.C *.h $(DESTDIR)www/software/mkfilter/current
 clean:
 		    rm -f *.o mkfilter mkshape mkaverage gencode genplot
